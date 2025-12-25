@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.docker.com/desktop-settings",
+  "_comment": "Canonical Docker Desktop settings for Device Ecosystem Manager",
+  "_version": "3.2.0",
+  
+  "analyticsEnabled": false,
+  "autoStart": true,
+  "displayedWelcomeMessage": true,
+  "licenseTermsVersion": 2,
+  
+  "wslEngineEnabled": true,
+  "useWindowsContainers": false,
+  
+  "filesharingDirectories": [],
+  
+  "cpus": "{{PROCESSORS}}",
+  "memoryMiB": "{{MEMORY_MB}}",
+  "diskSizeMiB": 65536,
+  "swapMiB": 1024,
+  
+  "displayedTutorial": true,
+  "displayedOnboarding": true,
+  
+  "useVirtualizationFramework": false,
+  "useVirtualizationFrameworkRosetta": false,
+  "useVirtualizationFrameworkVirtioFS": false,
+  
+  "kubernetesEnabled": false,
+  "showKubernetesSystemContainers": false,
+  
+  "proxyHttpMode": "system",
+  "overrideProxyHttp": "",
+  "overrideProxyHttps": "",
+  "overrideProxyExclude": "",
+  
+  "exposeDockerAPIOnTCP2375": false,
+  "updateAvailableTime": 0,
+  "updateLastSeenAt": "",
+  
+  "integratedWslDistros": ["{{WSL_DISTROS}}"],
+  
+  "lifecycleTimeoutSeconds": 600,
+  "autoDownloadUpdates": false,
+  "backendType": "wsl-2"
+}
+

@@ -1,0 +1,53 @@
+{
+  "version": "3.2.0",
+  "schemaVersion": 1,
+  "description": "Device Ecosystem Manager - Canonical Configuration",
+  "lastUpdated": "2024-12-25T00:00:00Z",
+  "author": "Device Ecosystem Manager Team",
+  
+  "files": {
+    "wslconfig": {
+      "path": "wslconfig.ini",
+      "description": "WSL2 configuration template",
+      "targetPath": "%USERPROFILE%\\.wslconfig",
+      "syncToAllProfiles": true,
+      "placeholders": ["MEMORY", "PROCESSORS", "HOSTNAME", "TIMESTAMP"]
+    },
+    "dockerSettings": {
+      "path": "docker-settings.json",
+      "description": "Docker Desktop settings template",
+      "targetPath": "%APPDATA%\\Docker\\settings.json",
+      "syncToAllProfiles": true,
+      "placeholders": ["PROCESSORS", "MEMORY_MB", "WSL_DISTROS"]
+    },
+    "wslSetup": {
+      "path": "wsl-setup.sh",
+      "description": "WSL user environment setup script",
+      "targetPath": "/etc/device-ecosystem/setup.sh",
+      "syncToAllProfiles": true,
+      "placeholders": []
+    }
+  },
+  
+  "machineSpecificSettings": {
+    "memoryAllocationRatio": 0.5,
+    "maxMemoryGB": 16,
+    "minMemoryGB": 2,
+    "processorAllocationRatio": 0.8,
+    "minProcessors": 2
+  },
+  
+  "syncSettings": {
+    "enforceScheduleMinutes": 60,
+    "autoRepairDrift": true,
+    "backupBeforeSync": true,
+    "logRetentionDays": 30
+  },
+  
+  "compatibility": {
+    "minWindowsBuild": 19041,
+    "minPowerShellVersion": "5.1",
+    "supportedWSLVersions": ["2"]
+  }
+}
+

@@ -1,0 +1,58 @@
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+
+# PowerShell
+*.ps1.bak
+*.ps1.tmp
+
+# Bash
+*.sh.bak
+*.sh.tmp
+
+# WSL-specific
+.wslconfig.bak
+wslconfig.bak
+
+# Backup directories
+backups/
+backup/
+*.backup/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test files
+test-output/
+test-results/
+
