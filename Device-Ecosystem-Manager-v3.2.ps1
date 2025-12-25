@@ -1,4 +1,6 @@
-﻿<#
+﻿#Requires -RunAsAdministrator
+#Requires -Version 5.1
+<#
 .SYNOPSIS
     Device Ecosystem Manager v3.2 - Comprehensive WSL2 & Docker Desktop Management
     

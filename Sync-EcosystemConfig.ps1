@@ -1,4 +1,5 @@
 ﻿#Requires -RunAsAdministrator
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Lightweight scheduled sync script for Device Ecosystem Manager
