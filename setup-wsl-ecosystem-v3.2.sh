@@ -200,14 +200,15 @@ print_header() {
     local title="$1"
     local width=70
     local line
-    line=$(printf '=%.0s' $(seq 1 $width))
-    
+    # SC2046 fix: Quote command substitution to prevent word splitting
+    line=$(printf '=%.0s' $(seq 1 "$width"))
+
     echo ""
     echo "${CYAN}${line}${RESET}"
     echo "${CYAN} ${title}${RESET}"
     echo "${CYAN}${line}${RESET}"
     echo ""
-    
+
     log "INFO" "=== $title ==="
 }
 
@@ -281,28 +282,30 @@ command_exists() {
 }
 
 # Confirm action (respects AUTO_CONFIRM flag)
+# Usage: confirm "message" ["y"|"n"]
+# Returns: 0 if confirmed, 1 if not confirmed
 confirm() {
     local message="${1:-Continue?}"
     local default="${2:-n}"
-    
+
     if [[ "$AUTO_CONFIRM" == true ]]; then
         log "INFO" "Auto-confirmed: $message"
         return 0
     fi
-    
-    local prompt
+
+    local prompt response
     if [[ "$default" == "y" ]]; then
         prompt="$message [Y/n]: "
     else
         prompt="$message [y/N]: "
     fi
-    
+
     read -r -p "$prompt" response
-    
+
     if [[ -z "$response" ]]; then
         response="$default"
     fi
-    
+
     [[ "$response" =~ ^[Yy] ]]
 }
 
@@ -535,7 +538,11 @@ backup_configuration() {
             print_info "Creating encrypted backup of SSH keys..."
             if confirm "Encrypt private SSH keys in backup?" "y"; then
                 local key_archive="${backup_path}/ssh/private_keys.tar.gz.gpg"
-                tar -czf - -C "${HOME}/.ssh" $(ls -1 "${HOME}/.ssh" | grep -v '\.pub$' | grep -v 'known_hosts' | grep -v 'config') 2>/dev/null | \
+                # SC2046 fix: Use find with -print0 and xargs for safer file handling
+                # Only backup private keys (exclude .pub, known_hosts, config, authorized_keys)
+                find "${HOME}/.ssh" -maxdepth 1 -type f ! -name '*.pub' ! -name 'known_hosts' \
+                    ! -name 'config' ! -name 'authorized_keys' -print0 2>/dev/null | \
+                    tar -czf - -C "${HOME}/.ssh" --null -T - 2>/dev/null | \
                     gpg --symmetric --cipher-algo AES256 -o "$key_archive" 2>/dev/null && {
                     chmod 600 "$key_archive"
                     print_success "Private keys encrypted"
@@ -594,85 +601,102 @@ EOF
 
 cleanup_old_backups() {
     local count
-    count=$(find "$BACKUP_DIR" -maxdepth 1 -type d -name 'backup-*' | wc -l)
-    
+    count=$(find "$BACKUP_DIR" -maxdepth 1 -type d -name 'backup-*' 2>/dev/null | wc -l)
+
     if [[ $count -gt $MAX_BACKUP_COUNT ]]; then
         print_info "Cleaning up old backups (keeping last $MAX_BACKUP_COUNT)..."
-        
-        find "$BACKUP_DIR" -maxdepth 1 -type d -name 'backup-*' -printf '%T@ %p\n' | \
-            sort -n | head -n -"$MAX_BACKUP_COUNT" | cut -d' ' -f2- | \
-            while read -r old_backup; do
-                rm -rf "$old_backup"
-                log "INFO" "Removed old backup: $old_backup"
+
+        # SC2162 fix: Use read -r to avoid backslash interpretation
+        # Process old backups safely with proper quoting
+        local to_remove
+        to_remove=$((count - MAX_BACKUP_COUNT))
+
+        find "$BACKUP_DIR" -maxdepth 1 -type d -name 'backup-*' -printf '%T@ %p\n' 2>/dev/null | \
+            sort -n | head -n "$to_remove" | cut -d' ' -f2- | \
+            while IFS= read -r old_backup; do
+                if [[ -d "$old_backup" ]]; then
+                    rm -rf "$old_backup"
+                    log "INFO" "Removed old backup: $old_backup"
+                fi
             done
     fi
 }
 
 list_backups() {
     print_header "AVAILABLE BACKUPS"
-    
+
     if [[ ! -d "$BACKUP_DIR" ]]; then
         print_warning "No backup directory found"
         return 1
     fi
-    
+
     local backups
-    mapfile -t backups < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name 'backup-*' | sort -r)
-    
+    mapfile -t backups < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name 'backup-*' 2>/dev/null | sort -r)
+
     if [[ ${#backups[@]} -eq 0 ]]; then
         print_warning "No backups found"
         return 1
     fi
-    
+
     local i=1
     for backup in "${backups[@]}"; do
         local name
         name=$(basename "$backup")
         local manifest="${backup}/manifest.json"
         local files="unknown"
-        
+
         if [[ -f "$manifest" ]]; then
             files=$(jq -r '.files_backed_up // "unknown"' "$manifest" 2>/dev/null || echo "unknown")
         fi
-        
+
         local age_days
-        age_days=$(( ($(date +%s) - $(stat -c %Y "$backup")) / 86400 ))
-        
+        local current_time backup_time
+        current_time=$(date +%s)
+        backup_time=$(stat -c %Y "$backup" 2>/dev/null || echo "$current_time")
+        age_days=$(( (current_time - backup_time) / 86400 ))
+
         printf "  [%d] %s (%s files, %d days ago)\n" "$i" "$name" "$files" "$age_days"
         ((i++))
     done
-    
+
     echo ""
 }
 
 restore_configuration() {
     local backup_path="${1:-}"
-    
+
     print_header "CONFIGURATION RESTORE"
-    
+
     # List and select backup if not specified
     if [[ -z "$backup_path" ]]; then
         list_backups || return 1
-        
+
         local backups
-        mapfile -t backups < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name 'backup-*' | sort -r)
-        
+        mapfile -t backups < <(find "$BACKUP_DIR" -maxdepth 1 -type d -name 'backup-*' 2>/dev/null | sort -r)
+
+        local selection
         read -r -p "Select backup number (1-${#backups[@]}) or [C]ancel: " selection
-        
+
         if [[ "$selection" =~ ^[Cc] ]]; then
             print_warning "Restore cancelled"
             return $EXIT_USER_CANCELLED
         fi
-        
-        local index=$((selection - 1))
-        if [[ $index -lt 0 ]] || [[ $index -ge ${#backups[@]} ]]; then
-            print_error "Invalid selection"
+
+        # Validate selection is a number
+        if ! [[ "$selection" =~ ^[0-9]+$ ]]; then
+            print_error "Invalid selection: must be a number"
             return $EXIT_INVALID_ARG
         fi
-        
+
+        local index=$((selection - 1))
+        if [[ $index -lt 0 ]] || [[ $index -ge ${#backups[@]} ]]; then
+            print_error "Invalid selection: out of range"
+            return $EXIT_INVALID_ARG
+        fi
+
         backup_path="${backups[$index]}"
     fi
-    
+
     # Validate backup path
     if [[ ! -d "$backup_path" ]]; then
         print_error "Backup not found: $backup_path"
