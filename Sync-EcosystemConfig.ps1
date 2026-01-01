@@ -1,4 +1,5 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Lightweight scheduled sync script for Device Ecosystem Manager
@@ -50,16 +51,41 @@ if (-not (Test-Path $LogDir)) {
 }
 
 function Write-SyncLog {
+    <#
+    .SYNOPSIS
+        Writes a timestamped log entry to file and optionally to console
+    .PARAMETER Message
+        The message to log
+    .PARAMETER Level
+        Log level: INFO, WARNING, ERROR, SUCCESS
+    #>
+    [CmdletBinding()]
     param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
         [string]$Message,
+
+        [Parameter()]
+        [ValidateSet('INFO', 'WARNING', 'ERROR', 'SUCCESS')]
         [string]$Level = 'INFO'
     )
-    
+
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
     $entry = "[$timestamp] [$Level] $Message"
-    
-    Add-Content -Path $LogFile -Value $entry -ErrorAction SilentlyContinue
-    
+
+    # Ensure log directory exists before writing
+    try {
+        $logDir = Split-Path -Path $LogFile -Parent
+        if (-not (Test-Path -Path $logDir)) {
+            New-Item -ItemType Directory -Path $logDir -Force -ErrorAction Stop | Out-Null
+        }
+        Add-Content -Path $LogFile -Value $entry -ErrorAction Stop
+    }
+    catch {
+        # Fallback to console if file logging fails
+        Write-Warning "Failed to write to log file: $_"
+    }
+
     if (-not $Silent) {
         switch ($Level) {
             'ERROR'   { Write-Host $entry -ForegroundColor Red }
@@ -71,102 +97,184 @@ function Write-SyncLog {
 }
 
 function Get-UserProfiles {
+    <#
+    .SYNOPSIS
+        Retrieves all valid user profiles on the system
+    .DESCRIPTION
+        Scans C:\Users for user directories with NTUSER.DAT files,
+        excluding system and default profiles
+    .OUTPUTS
+        Array of hashtables with user profile information
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable[]])]
+    param()
+
     $excludedProfiles = @('Public', 'Default', 'Default User', 'All Users', 'defaultuser0')
-    
-    Get-ChildItem -Path 'C:\Users' -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -notin $excludedProfiles } |
-        Where-Object { Test-Path (Join-Path $_.FullName 'NTUSER.DAT') } |
-        ForEach-Object {
-            @{
-                Name = $_.Name
-                Path = $_.FullName
-                WSLConfigPath = Join-Path $_.FullName '.wslconfig'
-                HasWSLConfig = Test-Path (Join-Path $_.FullName '.wslconfig')
+
+    try {
+        Get-ChildItem -Path 'C:\Users' -Directory -ErrorAction Stop |
+            Where-Object { $_.Name -notin $excludedProfiles } |
+            Where-Object { Test-Path -Path (Join-Path $_.FullName 'NTUSER.DAT') -ErrorAction SilentlyContinue } |
+            ForEach-Object {
+                $wslConfigPath = Join-Path $_.FullName '.wslconfig'
+                [PSCustomObject]@{
+                    Name = $_.Name
+                    Path = $_.FullName
+                    WSLConfigPath = $wslConfigPath
+                    HasWSLConfig = Test-Path -Path $wslConfigPath -ErrorAction SilentlyContinue
+                }
             }
-        }
+    }
+    catch {
+        Write-SyncLog "Failed to enumerate user profiles: $($_.Exception.Message)" -Level 'ERROR'
+        return @()
+    }
 }
 
 function Get-CanonicalWSLConfig {
+    <#
+    .SYNOPSIS
+        Loads and processes the canonical WSL configuration template
+    .DESCRIPTION
+        Reads the canonical wslconfig.ini template and replaces placeholders
+        with system-specific values (memory, processors, hostname, timestamp)
+    .OUTPUTS
+        String containing the processed configuration, or $null on error
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+
     $canonicalPath = Join-Path $ScriptDir 'canonical-config\wslconfig.ini'
-    
-    if (-not (Test-Path $canonicalPath)) {
+
+    if (-not (Test-Path -Path $canonicalPath -PathType Leaf)) {
         Write-SyncLog "Canonical config not found: $canonicalPath" -Level 'ERROR'
         return $null
     }
-    
-    $template = Get-Content -Path $canonicalPath -Raw
-    
-    # Get system specs for placeholder replacement
-    $cs = Get-CimInstance -ClassName Win32_ComputerSystem
-    $totalRAM = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
-    $processors = $cs.NumberOfLogicalProcessors
-    
-    $optimalMemory = [math]::Max(2, [math]::Min([math]::Floor($totalRAM * 0.5), 16))
-    $optimalProcessors = [math]::Max(2, [math]::Floor($processors * 0.8))
-    
-    # Replace placeholders
-    $config = $template
-    $config = $config -replace '\{\{MEMORY\}\}', $optimalMemory
-    $config = $config -replace '\{\{PROCESSORS\}\}', $optimalProcessors
-    $config = $config -replace '\{\{HOSTNAME\}\}', $env:COMPUTERNAME
-    $config = $config -replace '\{\{TIMESTAMP\}\}', (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-    
-    return $config
+
+    try {
+        $template = Get-Content -Path $canonicalPath -Raw -ErrorAction Stop
+
+        # Get system specs for placeholder replacement
+        $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+        $totalRAM = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
+        $processors = $cs.NumberOfLogicalProcessors
+
+        # Calculate optimal values with bounds checking
+        $optimalMemory = [math]::Max(2, [math]::Min([math]::Floor($totalRAM * 0.5), 16))
+        $optimalProcessors = [math]::Max(2, [math]::Floor($processors * 0.8))
+
+        # Replace placeholders with validated values
+        $config = $template
+        $config = $config -replace '\{\{MEMORY\}\}', $optimalMemory
+        $config = $config -replace '\{\{PROCESSORS\}\}', $optimalProcessors
+        $config = $config -replace '\{\{HOSTNAME\}\}', $env:COMPUTERNAME
+        $config = $config -replace '\{\{TIMESTAMP\}\}', (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+
+        return $config
+    }
+    catch {
+        Write-SyncLog "Failed to process canonical config: $($_.Exception.Message)" -Level 'ERROR'
+        return $null
+    }
 }
 
 function Sync-GitRepository {
-    $gitPath = Get-Command git -ErrorAction SilentlyContinue
-    
-    if (-not $gitPath) {
+    <#
+    .SYNOPSIS
+        Attempts to sync the repository with the remote
+    .DESCRIPTION
+        Checks if git is available and if the script is in a git repository,
+        then fetches and pulls updates if available
+    .OUTPUTS
+        Boolean indicating success or failure
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+
+    # Check if git is available
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
         Write-SyncLog "Git not available - skipping repository sync" -Level 'WARNING'
         return $false
     }
-    
+
+    # Check if we're in a git repository
     $gitDir = Join-Path $ScriptDir '.git'
-    if (-not (Test-Path $gitDir)) {
+    if (-not (Test-Path -Path $gitDir -PathType Container)) {
         Write-SyncLog "Not a git repository - skipping sync" -Level 'WARNING'
         return $false
     }
-    
+
     try {
-        Push-Location $ScriptDir
-        
+        Push-Location -Path $ScriptDir -ErrorAction Stop
+
+        # Fetch updates from remote
         $fetchOutput = git fetch --quiet 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Git fetch failed: $fetchOutput"
+        }
+
+        # Check if we're behind
         $status = git status -uno 2>&1
-        
         if ($status -match 'behind') {
             Write-SyncLog "Updates available - pulling..." -Level 'INFO'
             $pullOutput = git pull --quiet 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "Git pull failed: $pullOutput"
+            }
             Write-SyncLog "Repository updated" -Level 'SUCCESS'
         }
         else {
             Write-SyncLog "Repository is up to date" -Level 'INFO'
         }
-        
-        Pop-Location
+
         return $true
     }
     catch {
         Write-SyncLog "Git sync failed: $($_.Exception.Message)" -Level 'ERROR'
-        Pop-Location
         return $false
+    }
+    finally {
+        Pop-Location -ErrorAction SilentlyContinue
     }
 }
 
 function Compare-Configs {
+    <#
+    .SYNOPSIS
+        Compares two configuration strings for equality
+    .DESCRIPTION
+        Normalizes line endings and whitespace before comparing configurations
+    .PARAMETER Canonical
+        The canonical (expected) configuration string
+    .PARAMETER Current
+        The current configuration string to compare
+    .OUTPUTS
+        Boolean indicating whether the configurations match
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
     param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
         [string]$Canonical,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
         [string]$Current
     )
-    
-    if ([string]::IsNullOrEmpty($Current)) {
+
+    # Empty current config is never equal to canonical
+    if ([string]::IsNullOrWhiteSpace($Current)) {
         return $false
     }
-    
+
     # Normalize line endings and whitespace for comparison
-    $canonicalNorm = ($Canonical -replace '\r\n', "`n").Trim()
-    $currentNorm = ($Current -replace '\r\n', "`n").Trim()
-    
+    $canonicalNorm = ($Canonical -replace '\r\n', "`n" -replace '\r', "`n").Trim()
+    $currentNorm = ($Current -replace '\r\n', "`n" -replace '\r', "`n").Trim()
+
     return $canonicalNorm -eq $currentNorm
 }
 

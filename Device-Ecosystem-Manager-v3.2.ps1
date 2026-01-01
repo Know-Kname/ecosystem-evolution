@@ -1,3 +1,5 @@
+﻿#Requires -RunAsAdministrator
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Device Ecosystem Manager v3.2 - Comprehensive WSL2 & Docker Desktop Management
@@ -2266,7 +2268,7 @@ function Repair-Docker {
         Write-Host "  1. Open Docker Desktop" -ForegroundColor $Script:Config.Colors.Info
         Write-Host "  2. Go to Settings → Resources → WSL Integration" -ForegroundColor $Script:Config.Colors.Info
         Write-Host "  3. Enable integration for all distributions" -ForegroundColor $Script:Config.Colors.Info
-        Write-Host "  4. Click 'Apply & Restart'" -ForegroundColor $Script:Config.Colors.Info
+        Write-Host "  4. Click 'Apply and Restart'" -ForegroundColor $Script:Config.Colors.Info
     }
 }
 
@@ -2592,9 +2594,11 @@ function Get-HealthReport {
         { $_ -ge 60 } { $Script:Config.Colors.Warning }
         default { $Script:Config.Colors.Error }
     }
-    
-    $progressBar = ('[' + ('█' * [math]::Floor($overallScore / 5)) + ('░' * (20 - [math]::Floor($overallScore / 5))) + ']')
-    
+
+    $filledBars = [math]::Floor($overallScore / 5)
+    $emptyBars = 20 - $filledBars
+    $progressBar = '[' + ('█' * $filledBars) + ('░' * $emptyBars) + ']'
+
     Write-Host "  OVERALL: " -NoNewline
     Write-Host "$progressBar $overallScore/100 " -ForegroundColor $scoreColor -NoNewline
     Write-Host "($($Script:InventoryData.HealthStatus))" -ForegroundColor $scoreColor
@@ -2771,9 +2775,9 @@ function Show-MainMenu {
         Write-Host "    │                        MAIN MENU                            │" -ForegroundColor $Script:Config.Colors.Menu
         Write-Host "    ├─────────────────────────────────────────────────────────────┤" -ForegroundColor $Script:Config.Colors.Menu
         Write-Host "    │  DIAGNOSTICS                                                │" -ForegroundColor $Script:Config.Colors.Menu
-        Write-Host "    │   [1]  System Inventory & Health Check                      │" -ForegroundColor $Script:Config.Colors.Menu
-        Write-Host "    │   [2]  WSL2 Diagnostics & Repair                            │" -ForegroundColor $Script:Config.Colors.Menu
-        Write-Host "    │   [3]  Docker Diagnostics & Repair                          │" -ForegroundColor $Script:Config.Colors.Menu
+        Write-Host "    │   [1]  System Inventory and Health Check                    │" -ForegroundColor $Script:Config.Colors.Menu
+        Write-Host "    │   [2]  WSL2 Diagnostics and Repair                          │" -ForegroundColor $Script:Config.Colors.Menu
+        Write-Host "    │   [3]  Docker Diagnostics and Repair                        │" -ForegroundColor $Script:Config.Colors.Menu
         Write-Host "    │   [4]  Auto-Repair All Issues                               │" -ForegroundColor $Script:Config.Colors.Menu
         Write-Host "    │                                                             │" -ForegroundColor $Script:Config.Colors.Menu
         Write-Host "    │  MULTI-PROFILE SYNC                                         │" -ForegroundColor $Script:Config.Colors.Menu
@@ -2782,7 +2786,7 @@ function Show-MainMenu {
         Write-Host "    │   [7]  Sync from Git Repository                             │" -ForegroundColor $Script:Config.Colors.Menu
         Write-Host "    │   [8]  Manage Scheduled Enforcement                         │" -ForegroundColor $Script:Config.Colors.Menu
         Write-Host "    │                                                             │" -ForegroundColor $Script:Config.Colors.Menu
-        Write-Host "    │  BACKUP & RESTORE                                           │" -ForegroundColor $Script:Config.Colors.Menu
+        Write-Host "    │  BACKUP and RESTORE                                         │" -ForegroundColor $Script:Config.Colors.Menu
         Write-Host "    │   [B]  Backup Configuration                                 │" -ForegroundColor $Script:Config.Colors.Menu
         Write-Host "    │   [R]  Restore Configuration                                │" -ForegroundColor $Script:Config.Colors.Menu
         Write-Host "    │   [E]  Export Report (JSON)                                 │" -ForegroundColor $Script:Config.Colors.Menu
