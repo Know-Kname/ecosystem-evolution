@@ -1,0 +1,61 @@
+name: CI - PowerShell
+
+on:
+  push:
+    branches: [main]
+    paths: ['**/*.ps1', '**/*.psm1', '**/*.psd1']
+  pull_request:
+    branches: [main]
+    paths: ['**/*.ps1', '**/*.psm1', '**/*.psd1']
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: PSScriptAnalyzer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Settings PSGallery -Severity Warning,Error
+          if ($results) {
+            $results | Format-Table -AutoSize
+            Write-Error "PSScriptAnalyzer found $($results.Count) issue(s)"
+            exit 1
+          } else {
+            Write-Host "No issues found" -ForegroundColor Green
+          }
+
+  syntax-check:
+    name: Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check PowerShell syntax
+        shell: pwsh
+        run: |
+          $errors = @()
+          Get-ChildItem -Recurse -Include *.ps1,*.psm1 | ForEach-Object {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+            if ($parseErrors) {
+              $errors += "$($_.Name): $($parseErrors.Count) error(s)"
+              $parseErrors | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+            }
+          }
+          if ($errors.Count -gt 0) {
+            Write-Error "Syntax errors found in $($errors.Count) file(s)"
+            exit 1
+          } else {
+            Write-Host "All scripts passed syntax check" -ForegroundColor Green
+          }
