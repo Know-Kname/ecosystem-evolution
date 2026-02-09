@@ -1,0 +1,37 @@
+{
+  "builder": {
+    "gc": {
+      "defaultKeepStorage": "25GB",
+      "enabled": true,
+      "maxUnusedBuildCacheSize": "25GB"
+    }
+  },
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "5",
+    "compress": "true",
+    "mode": "non-blocking"
+  },
+  "storage-driver": "overlay2",
+  "insecure-registries": [],
+  "registry-mirrors": [
+    "https://mirror.gcr.io",
+    "https://registry-1.docker.io"
+  ],
+  "experimental": false,
+  "features": {
+    "buildkit": true
+  },
+  "icc": false,
+  "live-restore": true,
+  "debug": false,
+  "dns": ["8.8.8.8", "8.8.4.4"],
+  "default-runtime": "runc",
+  "runtimes": {
+    "runc": {
+      "path": "runc"
+    }
+  },
+  "metrics-addr": "127.0.0.1:9323"
+}

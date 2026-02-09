@@ -1,0 +1,60 @@
+# Device-Wide WSL Configuration Template
+# Source of Truth for Device Ecosystem Manager
+# 
+# Profile: chugh (Primary Development Profile)
+# System: Windows 11 (assumed based on mirrored networking support)
+# RAM: 32GB (estimated from 7GB WSL2 allocation)
+# CPUs: 12 logical processors
+# Last Updated: 2025-12-31
+#
+# Placeholders (replaced at sync time):
+#   7      - Calculated based on system RAM
+#   12  - Calculated based on logical CPUs
+#   DELL-94Z02    - Machine hostname
+#   2025-12-25 16:56:20   - When config was applied
+#
+# This file is the canonical configuration. All machines and profiles
+# should sync from this template.
+
+[wsl2]
+# Memory allocation - dynamically calculated per machine
+# Formula: min(max(2GB, 50% of RAM), 16GB)
+memory=7GB
+
+# Processor allocation - dynamically calculated per machine
+# Formula: max(2, 80% of logical processors)
+processors=12
+
+# Swap file size (fixed across all machines)
+swap=4GB
+
+# Enable localhost forwarding (REQUIRED for Docker, dev servers)
+localhostForwarding=true
+
+# DNS tunneling (helps with VPN scenarios)
+dnsTunneling=true
+
+# Firewall (enable for better security)
+firewall=true
+
+# Nested virtualization (disable for stability)
+nestedVirtualization=false
+
+# GUI support
+guiApplications=true
+
+# Safe mode (disable unless troubleshooting)
+safeMode=false
+
+# Debug console
+debugConsole=false
+
+[experimental]
+# Sparse VHD (reduces disk space usage)
+sparseVhd=true
+
+# Auto memory reclaim (returns unused memory to Windows)
+autoMemoryReclaim=gradual
+
+# Host address loopback
+hostAddressLoopback=true
